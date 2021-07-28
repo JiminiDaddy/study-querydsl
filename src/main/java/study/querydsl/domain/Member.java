@@ -11,7 +11,7 @@ import javax.persistence.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Entity
-class Member {
+public class Member {
 	@Id
 	@GeneratedValue
 	@Column(name = "member_id")
@@ -33,7 +33,7 @@ class Member {
 		this.age = age;
 	}
 
-	Member(String name, int age, Team team) {
+	public Member(String name, int age, Team team) {
 		this(name, age);
 		this.team = team;
 		if (this.team != null) {

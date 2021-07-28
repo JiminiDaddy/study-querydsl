@@ -13,7 +13,7 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Entity
-class Team {
+public class Team {
 	@Id @GeneratedValue
 	@Column(name = "team_id")
 	private Long id;
@@ -23,7 +23,7 @@ class Team {
 	@OneToMany(mappedBy = "team")
 	private List<Member> members = new ArrayList<>();
 
-	Team(String name) {
+	public Team(String name) {
 		this.name = name;
 	}
 
