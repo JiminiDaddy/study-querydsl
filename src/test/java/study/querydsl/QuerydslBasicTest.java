@@ -1,9 +1,14 @@
 package study.querydsl;
 
+import com.querydsl.core.NonUniqueResultException;
+import com.querydsl.core.QueryResults;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.domain.Member;
 import study.querydsl.domain.QMember;
@@ -11,10 +16,14 @@ import study.querydsl.domain.Team;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static study.querydsl.domain.QMember.*;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static study.querydsl.domain.QMember.member;
+import static study.querydsl.domain.QTeam.team;
 
+@Rollback(true)
 @Transactional
 @SpringBootTest
 public class QuerydslBasicTest {
@@ -71,5 +80,190 @@ public class QuerydslBasicTest {
 			.fetchOne();
 
 		assertThat(findMember.getName()).isEqualTo("member1");
+	}
+
+	@Test
+	@DisplayName("검색: and")
+	void search() {
+		Member findMember = queryFactory
+			.selectFrom(member)
+			.where(member.name.eq("member1")
+				.and(member.age.eq(10)))
+			.fetchOne();
+
+		Assertions.assertThat(findMember.getName()).isEqualTo("member1");
+		Assertions.assertThat(findMember.getAge()).isEqualTo(10);
+	}
+
+	@Test
+	@DisplayName("검색: simple and")
+	void search2() {
+		Member findMember = queryFactory
+			.selectFrom(member)
+			.where(
+				member.name.eq("member1"),
+				member.age.eq(10))
+			.fetchOne();
+
+		Assertions.assertThat(findMember.getName()).isEqualTo("member1");
+		Assertions.assertThat(findMember.getAge()).isEqualTo(10);
+	}
+
+	@Test
+	@DisplayName("검색: and, in, goe, lt")
+	void search3() {
+		Member findMember = queryFactory
+			.selectFrom(member)
+			.where(
+				member.name.in("member1", "member2"),
+				member.age.goe(15))
+			.fetchOne();
+
+		Assertions.assertThat(findMember.getName()).isEqualTo("member2");
+		Assertions.assertThat(findMember.getAge()).isEqualTo(20);
+
+		List<Member> findMembers = queryFactory
+			.selectFrom(member)
+			.where(
+				member.name.in("member1", "member2", "member3"),
+				member.age.lt(25))
+			.fetch();
+
+		assertThat(findMembers.size()).isEqualTo(2);
+		for (Member findMember1 : findMembers) {
+			System.out.println("findMember1.getName() = " + findMember1.getName() + ", " + findMember1.getAge());
+		}
+	}
+
+	@Test
+	@DisplayName("검색: or, between")
+	void search4() {
+		Member findMember = queryFactory
+			.selectFrom(member)
+			.where(
+				member.name.eq("member1").or(member.name.eq("member2")).and(member.age.eq(20))
+			)
+			.fetchOne();
+
+		Assertions.assertThat(findMember.getName()).isEqualTo("member2");
+		Assertions.assertThat(findMember.getAge()).isEqualTo(20);
+
+		List<Member> findMembers = queryFactory
+			.selectFrom(member)
+			.where(
+				member.name.eq("member2").and(member.age.eq(20))
+				.or(member.name.eq("member3"))
+				.or(member.age.between(30, 40))
+			)
+			.fetch();
+
+		assertThat(findMembers.size()).isEqualTo(3);
+		for (Member findMember1 : findMembers) {
+			System.out.println("findMember1.getName() + \",\" + findMember1.getAge() = " + findMember1.getName() + "," + findMember1.getAge());
+		}
+	}
+
+	@Test
+	@DisplayName("결과 조회")
+	void resultFetch() {
+		List<Member> fetch = queryFactory
+			.selectFrom(member)
+			.fetch();
+		assertThat(fetch.size()).isEqualTo(4);
+
+		// 예외 패키지가 persistence가 아니라 querydsl이다.
+		assertThatThrownBy(() -> {
+			Member fetchOne = queryFactory
+				.selectFrom(QMember.member)
+				.fetchOne();
+		}).isInstanceOf(NonUniqueResultException.class);
+
+		Member fetchFirst = queryFactory
+			.selectFrom(QMember.member)
+			.fetchFirst();
+		assertThat(fetchFirst.getName()).isEqualTo("member1");
+
+		QueryResults<Member> fetchResults = queryFactory
+			.selectFrom(member)
+			.fetchResults();
+
+		assertThat(fetchResults.getResults().size()).isEqualTo(4);
+		assertThat(fetchResults.getTotal()).isEqualTo(4);
+
+		long fetchCount = queryFactory
+			.selectFrom(team)
+			.fetchCount();
+		assertThat(fetchCount).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("정렬")
+	void sort() {
+		entityManager.persist(new Member("member6", 90));
+		entityManager.persist(new Member("member7", 90));
+		entityManager.persist(new Member("member8", 90));
+		entityManager.persist(new Member(null, 100));
+		entityManager.persist(new Member(null, 50));
+
+		// 정렬 기준
+		// 1. 나이 내림차순
+		// 2. 이름 오름차순
+		// 3. nulls last
+		List<Member> members = queryFactory
+			.selectFrom(member)
+			.where(member.age.goe(50))
+			.orderBy(member.age.desc(), member.name.asc().nullsLast())
+			.fetch();
+
+		assertThat(members.size()).isEqualTo(5);
+		assertThat(members.get(0).getName()).isNull();
+		assertThat(members.get(4).getName()).isNull();
+		assertThat(members.get(1).getName()).isEqualTo("member6");
+		assertThat(members.get(2).getName()).isEqualTo("member7");
+		assertThat(members.get(3).getName()).isEqualTo("member8");
+	}
+
+	@Test
+	@DisplayName("페이징")
+	void paging() {
+		entityManager.persist(new Member("member5", 50));
+		entityManager.persist(new Member("member6", 60));
+
+		List<Member> fetch = queryFactory
+			.selectFrom(member)
+			.orderBy(member.age.desc())
+			.offset(2)
+			.limit(2)
+			.fetch();
+
+		assertThat(fetch.size()).isEqualTo(2);
+		// offset = 2이므로, 0, 1번째 데이터는 제외된다.
+		// 따라서 member6, member5는 제외되고 member4부터 조회된다.
+		// Spring-Data-Jpa의 페이징에서는 offset, size가 인자로 넘어가는데 이 size와 querydsl의 limit이 다름에 유의해야한다.
+		// querydsl은 전체 데이터에서 offset만큼 데이터가 제외되고 나머지가 조회되지만
+		// spring-data-jpa pagable의 size는 size * offset만큼 제외되고 나머지 데이터가 조회된다.
+		assertThat(fetch.get(0).getName()).isEqualTo("member4");
+		assertThat(fetch.get(1).getName()).isEqualTo("member3");
+	}
+
+
+	@Test
+	@DisplayName("페이징2")
+	void paging2() {
+		entityManager.persist(new Member("member5", 50));
+		entityManager.persist(new Member("member6", 60));
+
+		QueryResults<Member> memberQueryResults = queryFactory
+			.selectFrom(member)
+			.orderBy(member.age.desc())
+			.offset(2)
+			.limit(2)
+			.fetchResults();
+		List<Member> fetch = memberQueryResults.getResults();
+		// total 쿼리를 구할 때 limit, offset는 적용되지 않는다
+		//assertThat(memberQueryResults.getTotal()).isEqualTo(2);
+		assertThat(fetch.size()).isEqualTo(2);
+		assertThat(fetch.get(0).getName()).isEqualTo("member4");
+		assertThat(fetch.get(1).getName()).isEqualTo("member3");
 	}
 }
