@@ -13,6 +13,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static study.querydsl.domain.QMember.*;
 
 @Transactional
 @SpringBootTest
@@ -53,14 +54,20 @@ public class QuerydslBasicTest {
 		assertThat(findMember.getName()).isEqualTo("member1");
 	}
 
+	// QueryDSL은 JPQL의 Builder 역할 수행
 	@Test
 	void startQuerydsl() {
-		QMember m = new QMember("m");
+		// 1. Q-Type Object 직접 생성하여 사용
+		// 같은 테이블을 Join할 경우에는 alias 이름이 같으면 안되므로 (1)번 방식과 같이 엔티티 alias를 직접 명시하여 사용해야 한다.
+		//QMember m = new QMember("m");
 
+		// 2. 미리 만들어진 static instance 사용
+		//QMember m = QMember.member;
+		// 3. 미리 만들어진 static instance + static import 사용
 		Member findMember = queryFactory
-			.select(m)
-			.from(m)
-			.where(m.name.eq("member1"))
+			.select(member)
+			.from(member)
+			.where(member.name.eq("member1"))
 			.fetchOne();
 
 		assertThat(findMember.getName()).isEqualTo("member1");
