@@ -24,7 +24,7 @@ public class Member {
 	@ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
 	private Team team;
 
-	Member(String name) {
+	public Member(String name) {
 		this.name = name;
 	}
 

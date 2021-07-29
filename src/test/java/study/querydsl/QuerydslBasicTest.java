@@ -2,6 +2,7 @@ package study.querydsl;
 
 import com.querydsl.core.NonUniqueResultException;
 import com.querydsl.core.QueryResults;
+import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static study.querydsl.domain.QMember.member;
 import static study.querydsl.domain.QTeam.team;
 
-@Rollback(true)
+@Rollback(false)
 @Transactional
 @SpringBootTest
 public class QuerydslBasicTest {
@@ -265,5 +266,94 @@ public class QuerydslBasicTest {
 		assertThat(fetch.size()).isEqualTo(2);
 		assertThat(fetch.get(0).getName()).isEqualTo("member4");
 		assertThat(fetch.get(1).getName()).isEqualTo("member3");
+	}
+
+	@Test
+	@DisplayName("집합: count, sum, max, min, avg")
+	void aggregation() {
+		Tuple result = queryFactory
+			.select(
+				member.count(),
+				member.age.max(),
+				member.age.min(),
+				member.age.sum(),
+				member.age.avg()
+			)
+			.from(member)
+			.fetchOne();
+
+		assertThat(result.get(member.count())).isEqualTo(4);
+		assertThat(result.get(member.age.max())).isEqualTo(40);
+		assertThat(result.get(member.age.min())).isEqualTo(10);
+		assertThat(result.get(member.age.sum())).isEqualTo(100);
+		assertThat(result.get(member.age.avg())).isEqualTo(25);
+	}
+
+	@Test
+	@DisplayName("집합: groupby, having")
+	void groupbyAndHaving() {
+		List<Tuple> result = queryFactory
+			.select(team.name, member.age.avg())
+			.from(member)
+			.join(member.team, team)
+			.groupBy(team.name)
+			.fetch();
+
+		Tuple teamA = result.get(0);
+		Tuple teamB = result.get(1);
+
+		assertThat(teamA.get(team.name)).isEqualTo("TeamA");
+		assertThat(teamA.get(member.age.avg())).isEqualTo(15);
+		assertThat(teamB.get(team.name)).isEqualTo("TeamB");
+		assertThat(teamB.get(member.age.avg())).isEqualTo(35);
+	}
+
+	@Test
+	@DisplayName("조인")
+	void join() {
+		List<Member> teamA = queryFactory
+			.selectFrom(member)
+			.join(member.team, team)
+			.where(team.name.eq("TeamA"))
+			.fetch();
+
+		assertThat(teamA.size()).isEqualTo(2);
+		assertThat(teamA)
+			.extracting("name")
+			.containsExactly("member1", "member2");
+	}
+
+	@Test
+	@DisplayName("세타 조인(연관 관계가 없는 엔티티끼리 조인)")
+	void thetaJoin() {
+		entityManager.persist(new Member("TeamA"));
+		entityManager.persist(new Member("TeamB"));
+		entityManager.persist(new Member("TeamC"));
+
+		// cross join이 발생한다.
+		List<Member> result= queryFactory
+			.select(member)
+			.from(member, team)
+			.where(member.name.eq(team.name))
+			.fetch();
+
+		assertThat(result).extracting("name").containsExactly("TeamA", "TeamB");
+	}
+
+	@Test
+	@DisplayName("조인 + 필터링")
+	void joinOnFiltering() {
+		List<Tuple> result = queryFactory
+			.select(member, team)
+			.from(member)
+			.leftJoin(member.team, team)
+			.on(team.name.eq("TeamA"))
+			.fetch();
+
+		for (Tuple tuple : result) {
+			System.out.println("member_name: " + tuple);
+		}
+
+
 	}
 }
