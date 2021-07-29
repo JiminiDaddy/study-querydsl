@@ -3,6 +3,7 @@ package study.querydsl;
 import com.querydsl.core.NonUniqueResultException;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,11 +22,12 @@ import javax.persistence.PersistenceContext;
 import javax.persistence.PersistenceUnit;
 import java.util.List;
 
+import static com.querydsl.jpa.JPAExpressions.*;
 import static org.assertj.core.api.Assertions.*;
 import static study.querydsl.domain.QMember.member;
 import static study.querydsl.domain.QTeam.team;
 
-@Rollback(false)
+//@Rollback(false)
 @Transactional
 @SpringBootTest
 public class QuerydslBasicTest {
@@ -157,8 +159,8 @@ public class QuerydslBasicTest {
 			.selectFrom(member)
 			.where(
 				member.name.eq("member2").and(member.age.eq(20))
-				.or(member.name.eq("member3"))
-				.or(member.age.between(30, 40))
+					.or(member.name.eq("member3"))
+					.or(member.age.between(30, 40))
 			)
 			.fetch();
 
@@ -335,7 +337,7 @@ public class QuerydslBasicTest {
 		entityManager.persist(new Member("TeamC"));
 
 		// cross join이 발생한다.
-		List<Member> result= queryFactory
+		List<Member> result = queryFactory
 			.select(member)
 			.from(member, team)
 			.where(member.name.eq(team.name))
@@ -389,7 +391,7 @@ public class QuerydslBasicTest {
 		entityManager.flush();
 		entityManager.clear();
 
-		List<Member> result= queryFactory
+		List<Member> result = queryFactory
 			.selectFrom(member)
 			.join(member.team, team)
 			.where(member.name.eq("member1"))
@@ -411,7 +413,63 @@ public class QuerydslBasicTest {
 			.where(member.name.eq("member1"))
 			.fetchOne();
 
-		 boolean loaded = entityManagerFactory.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
-		 assertThat(loaded).isTrue();
+		boolean loaded = entityManagerFactory.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+		assertThat(loaded).isTrue();
+	}
+
+	// 나이가 가장 많은 회원 조회
+	@Test
+	@DisplayName("서브쿼리 - where절")
+	void subQueryWhere() {
+		QMember memberSub = new QMember("memberSub");
+
+		Member findMember = queryFactory
+			.selectFrom(QMember.member)
+			.where(QMember.member.age.eq(
+				select(memberSub.age.max()).from(memberSub)
+			))
+			.fetchOne();
+
+		assertThat(findMember.getAge()).isEqualTo(40);
+		assertThat(findMember.getName()).isEqualTo("member4");
+	}
+
+	// 특정 나이 이상의 회원들 조회
+	@Test
+	@DisplayName("서브쿼리 - where절2")
+	void subQueryWhere2() {
+		QMember memberSub = new QMember("memberSub");
+		List<Member> members = queryFactory
+			.selectFrom(member)
+			.where(member.age.in(
+				JPAExpressions
+					.select(memberSub.age)
+					.from(memberSub)
+					.where(memberSub.age.gt(20))
+			))
+			.fetch();
+
+		assertThat(members.size()).isEqualTo(2);
+		assertThat(members).extracting("age").containsExactly(30, 40);
+	}
+
+	// 회원이름과 회원평균나이를 조회
+	@Test
+	@DisplayName("서브쿼리 - select절")
+	void subQuerySelect() {
+		QMember memberSub = new QMember("memberSub");
+
+		List<Tuple> result = queryFactory
+			.select(member.name,
+				JPAExpressions
+					.select(memberSub.age.avg())
+					.from(memberSub)
+			)
+			.from(member)
+			.fetch();
+
+		for (Tuple tuple : result) {
+			System.out.println("tuple: " + tuple);
+		}
 	}
 }
