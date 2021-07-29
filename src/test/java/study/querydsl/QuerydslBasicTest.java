@@ -16,11 +16,12 @@ import study.querydsl.domain.QMember;
 import study.querydsl.domain.Team;
 
 import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
 import javax.persistence.PersistenceContext;
+import javax.persistence.PersistenceUnit;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static study.querydsl.domain.QMember.member;
 import static study.querydsl.domain.QTeam.team;
 
@@ -30,6 +31,9 @@ import static study.querydsl.domain.QTeam.team;
 public class QuerydslBasicTest {
 	@PersistenceContext
 	private EntityManager entityManager;
+
+	@PersistenceUnit
+	private EntityManagerFactory entityManagerFactory;
 
 	private JPAQueryFactory queryFactory;
 
@@ -346,14 +350,68 @@ public class QuerydslBasicTest {
 		List<Tuple> result = queryFactory
 			.select(member, team)
 			.from(member)
-			.leftJoin(member.team, team)
-			.on(team.name.eq("TeamA"))
+			// left-join의경우 team.name이 TeamA가 아닌 멤버들도 함깨 조회된다.
+			.leftJoin(member.team, team).on(team.name.eq("TeamA"))
+
+			// inner-join의경우 team.name이 TeamA가 아닌 멤버는 검색에서 제외된다.
+			//.join(member.team, team).on(team.name.eq("TeamA"))
 			.fetch();
 
 		for (Tuple tuple : result) {
 			System.out.println("member_name: " + tuple);
 		}
+	}
 
+	@Test
+	@DisplayName("연관관계가 없는 엔티티의 조인 + on")
+	void joinOnNoRelation() {
+		entityManager.persist(new Member("TeamA"));
+		entityManager.persist(new Member("TeamB"));
+		entityManager.persist(new Member("TeamC"));
 
+		List<Tuple> result = queryFactory
+			.select(member, team)
+			.from(member)
+			.leftJoin(team).on(member.name.eq(team.name))
+			// 연관관계가 없는 엔티티의 join에서 on절을 사용할 수 있으며 inner, outer join 모두 가능하다. (hibernate 5.1이상)
+			//.join(team).on(member.name.eq(team.name))
+			.fetch();
+
+		assertThat(result.size()).isEqualTo(7);
+		for (Tuple tuple : result) {
+			System.out.println("tuple: " + tuple);
+		}
+	}
+
+	@Test
+	@DisplayName("페치 조인 미사용")
+	void fechjoinNotUse() {
+		entityManager.flush();
+		entityManager.clear();
+
+		List<Member> result= queryFactory
+			.selectFrom(member)
+			.join(member.team, team)
+			.where(member.name.eq("member1"))
+			.fetch();
+
+		boolean loaded = entityManagerFactory.getPersistenceUnitUtil().isLoaded(result.get(0).getTeam());
+		assertThat(loaded).isFalse();
+	}
+
+	@Test
+	@DisplayName("페치 조인 사용")
+	void fetcjoinUse() {
+		entityManager.flush();
+		entityManager.clear();
+
+		Member findMember = queryFactory
+			.selectFrom(member)
+			.join(member.team, team).fetchJoin()
+			.where(member.name.eq("member1"))
+			.fetchOne();
+
+		 boolean loaded = entityManagerFactory.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+		 assertThat(loaded).isTrue();
 	}
 }
