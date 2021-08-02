@@ -3,6 +3,8 @@ package study.querydsl;
 import com.querydsl.core.NonUniqueResultException;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
@@ -10,7 +12,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.domain.Member;
 import study.querydsl.domain.QMember;
@@ -22,8 +23,9 @@ import javax.persistence.PersistenceContext;
 import javax.persistence.PersistenceUnit;
 import java.util.List;
 
-import static com.querydsl.jpa.JPAExpressions.*;
-import static org.assertj.core.api.Assertions.*;
+import static com.querydsl.jpa.JPAExpressions.select;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static study.querydsl.domain.QMember.member;
 import static study.querydsl.domain.QTeam.team;
 
@@ -181,12 +183,12 @@ public class QuerydslBasicTest {
 		// 예외 패키지가 persistence가 아니라 querydsl이다.
 		assertThatThrownBy(() -> {
 			Member fetchOne = queryFactory
-				.selectFrom(QMember.member)
+				.selectFrom(member)
 				.fetchOne();
 		}).isInstanceOf(NonUniqueResultException.class);
 
 		Member fetchFirst = queryFactory
-			.selectFrom(QMember.member)
+			.selectFrom(member)
 			.fetchFirst();
 		assertThat(fetchFirst.getName()).isEqualTo("member1");
 
@@ -424,8 +426,8 @@ public class QuerydslBasicTest {
 		QMember memberSub = new QMember("memberSub");
 
 		Member findMember = queryFactory
-			.selectFrom(QMember.member)
-			.where(QMember.member.age.eq(
+			.selectFrom(member)
+			.where(member.age.eq(
 				select(memberSub.age.max()).from(memberSub)
 			))
 			.fetchOne();
@@ -470,6 +472,70 @@ public class QuerydslBasicTest {
 
 		for (Tuple tuple : result) {
 			System.out.println("tuple: " + tuple);
+		}
+	}
+
+	@Test
+	@DisplayName("Simple Case")
+	void simpleCase() {
+		List<String> result = queryFactory
+			.select(member.age
+				.when(10).then("10살")
+				.when(20).then("20살")
+				.otherwise("그 외"))
+			.from(member)
+			.fetch();
+
+		for (String s : result) {
+			System.out.println(s);
+		}
+	}
+
+	// 아래 테스트코드와 같이 단순 치환같은 작업은 DB에서 하는것보다 애플리케이션에서 처리하는것이 좋다.
+	// DB는 가급적 Raw Data만 가져오고, 변환/처리는 App에서 하도록!
+	@Test
+	@DisplayName("Complex Case")
+	void complexCase() {
+		List<String> result = queryFactory
+			.select(new CaseBuilder()
+				.when(member.age.between(10, 19)).then("10대")
+				.when(member.age.between(20, 29)).then("20대")
+				.otherwise("기타")
+			)
+			.from(member)
+			.fetch();
+
+		for (String s : result) {
+			System.out.println(s);
+		}
+	}
+
+	@Test
+	@DisplayName("상수 더하기")
+	void addConstant() {
+		List<Tuple> result = queryFactory
+			.select(member.name, Expressions.constant("AAA"))
+			.from(member)
+			.fetch();
+
+		for (Tuple tuple : result) {
+			System.out.println("tuple = " + tuple);
+		}
+	}
+
+	@Test
+	@DisplayName("문자 더하기")
+	void addString() {
+		// username_age 의 형태로 출력하기
+		List<String> result = queryFactory
+			//.select(member.name.concat("_").concat(String.valueOf(member.age)))
+			.select(member.name.concat("_").concat(member.age.stringValue()))
+			.from(member)
+			.where(member.age.gt(20))
+			.fetch();
+
+		for (String s : result) {
+			System.out.println("s = " + s);
 		}
 	}
 }
