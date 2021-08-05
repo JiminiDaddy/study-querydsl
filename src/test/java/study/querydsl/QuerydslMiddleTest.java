@@ -1,10 +1,14 @@
 package study.querydsl;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static study.querydsl.domain.QMember.member;
 
 @Transactional
@@ -189,5 +194,68 @@ class QuerydslMiddleTest {
 		for (MemberDto memberDto : result) {
 			System.out.println("memberDto = " + memberDto);
 		}
+	}
+
+	@Test
+	@DisplayName("동적쿼리 by BooleanBuilder")
+	void dynamicQueryByBooleanBuilder() {
+		//String name = "member2";
+		String name = null;		// null과 empty는 다르니까 주의
+		Integer age = 20;
+
+		List<Member> result = searchMember(name, age);
+		assertThat(result.size()).isEqualTo(1);
+	}
+
+	private List<Member> searchMember(String nameCondition, Integer ageCondition) {
+		BooleanBuilder builder = new BooleanBuilder();
+		if (nameCondition != null) {
+			builder.and(member.name.eq(nameCondition));
+		}
+		if (ageCondition != null) {
+			builder.and(member.age.eq(ageCondition));
+		}
+
+		return queryFactory
+			.selectFrom(member)
+			.where(builder)
+			.fetch();
+	}
+
+	@Test
+	@DisplayName("동적쿼리 by Where Multi Parameters")
+	void dynamicQueryByWhereMultiParameters() {
+		// where multi-parameters의 장점은 각각 조건들을 메서드로 구현할 수 있다는 것이다.
+		// 조건들이 메서드화 되었으므로 다른 기능에서 같은 조건을 필요로 할 경우 재사용할 수 있는 장점이 있다.
+		// 또한 BooleanExpressions로 반환되는 메서드는 조립도 가능한 장점이 있다.
+
+		String nameCondition = "member3";
+		//String nameCondition = null;
+		Integer ageCondition = 30;
+
+		List<Member> members = searchMember2(nameCondition, ageCondition);
+		assertThat(members.size()).isEqualTo(1);
+	}
+
+	private List<Member> searchMember2(String nameCondition, Integer ageCondition) {
+		List<Member> result = queryFactory
+			.selectFrom(member)
+			//.where(equalsName(nameCondition), equalsAge(ageCondition))
+			.where(equalsAll(nameCondition, ageCondition))
+			.fetch();
+		return result;
+	}
+
+	private BooleanExpression equalsName(String nameCondition) {
+		return nameCondition != null ? member.name.eq(nameCondition) : null;
+	}
+
+	private BooleanExpression equalsAge(Integer ageCondition) {
+		return ageCondition != null ? member.age.eq(ageCondition) : null;
+	}
+
+	private Predicate equalsAll(String nameCondition, Integer ageCondition) {
+		// TODO equalsName, equalsAge에서 반환되는 null에 대한 처리가 필요하다
+		return equalsName(nameCondition).and(equalsAge(ageCondition));
 	}
 }
