@@ -14,6 +14,7 @@ import study.querydsl.domain.Member;
 import study.querydsl.domain.QMember;
 import study.querydsl.domain.Team;
 import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.QMemberDto;
 import study.querydsl.dto.UserDto;
 
 import javax.persistence.EntityManager;
@@ -166,6 +167,26 @@ class QuerydslMiddleTest {
 			.fetch();
 
 		for (UserDto memberDto : result) {
+			System.out.println("memberDto = " + memberDto);
+		}
+	}
+
+	@Test
+	@DisplayName("QueryProjection")
+	void findMemberDtoByQueryProjection() {
+		// QueryProjection의 장점
+		// 컴파일 시점에 타입 오류를 체크할 수 있다. (기존 생성자/필드/프로퍼티 방식의 프로젝션은 타입오류가 런타임에 발생한다.)
+
+		// QueryProjection의 단점
+		// 클래스(ex. Dto)가 Querydsl에 의존하게된다. 따라서 순수한 Dto를 원하는경우에는 사용할 수 없다.
+		// compileQuerydsl 커맨드를 통해 QType 클래스를 생성해야 한다.
+		List<MemberDto> result = queryFactory
+			.select(new QMemberDto(member.name, member.age)).distinct()
+			.from(member)
+			.where(member.age.lt(30))
+			.fetch();
+
+		for (MemberDto memberDto : result) {
 			System.out.println("memberDto = " + memberDto);
 		}
 	}
