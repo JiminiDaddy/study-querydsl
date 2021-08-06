@@ -8,7 +8,6 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,7 +54,7 @@ class QuerydslMiddleTest {
 		entityManager.persist(member3);
 		entityManager.persist(member4);
 		entityManager.flush();
-		entityManager.clear();
+		//entityManager.clear();
 	}
 
 	@Test
@@ -257,5 +256,92 @@ class QuerydslMiddleTest {
 	private Predicate equalsAll(String nameCondition, Integer ageCondition) {
 		// TODO equalsName, equalsAge에서 반환되는 null에 대한 처리가 필요하다
 		return equalsName(nameCondition).and(equalsAge(ageCondition));
+	}
+
+	//@Commit
+	@Test
+	@DisplayName("bulk Update")
+	void bulkUpdate() {
+		long count = queryFactory
+			.update(member)
+			.set(member.name, "미성년자")
+			.where(member.age.lt(20))
+			.execute();
+
+		// JPA는 Bulk연산을 처리할 때, 영속성 컨텍스트의 1차 캐시를 무시하고 바로 SQL을 DB로 전송한다.
+		// JPA는 엔티티를 조회할 때, DB에서 가져온 엔티티가 이미 영속성 컨텍스트에 존재한다면, DB에서 가져온 정보는 버리고 기존 엔티티를 유지한다.
+		// 따라서 Bulk연산 이후 영속성 컨텍스트와 DB의 동기화가 깨질 가능성이 발생해진다.
+		// 이것을 해결하려면 Bulk연산 이후 영속성 컨텍스트에 clear를 전송한다.
+
+		// BeforeEach문에서 flush/clear를 모두 처리하면 아래 코드는 필요없어진다.
+		entityManager.flush();
+		entityManager.clear();
+
+		assertThat(count).isEqualTo(1);
+
+		List<Member> findMembers = queryFactory
+			.selectFrom(member)
+			.fetch();
+
+		for (Member findMember : findMembers) {
+			System.out.println("findMember = " + findMember);
+		}
+	}
+
+	//@Commit
+	@Test
+	@DisplayName("Bulk Add")
+	void bulkAdd() {
+		long count = queryFactory
+			.update(member)
+			// minus는 지원되지 않는다
+			//.set(member.age, member.age.add(1))
+			.set(member.age, member.age.multiply(2))
+			.execute();
+
+		assertThat(count).isEqualTo(4);
+	}
+
+	//@Commit
+	@Test
+	@DisplayName("Bulk Delete")
+	void bulkDelete() {
+		long count = queryFactory
+			.delete(member)
+			.where(member.age.in(10, 30))
+			.execute();
+
+		assertThat(count).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("SQL-Function: replace")
+	void sqlFunctionReplace() {
+		List<String> result = queryFactory
+			.select(Expressions.stringTemplate(
+				"function('replace', {0}, {1}, {2})", member.name, "member", "M"))
+			.from(member)
+			.fetch();
+
+		for (String s : result) {
+			System.out.println("s = " + s);
+		}
+	}
+
+	@Test
+	@DisplayName("SQL-Function: lower")
+	void sqlFunctionLower() {
+		List<String> result = queryFactory
+			.select(member.name)
+			.from(member)
+			//.where(member.name.eq(Expressions.stringTemplate(
+			//	"function('lower', {0})", member.name)))
+			// lower처럼 DB 대부분에서 지원되는 함수는 Querydsl에서 기본적으로 지원한다.
+			.where(member.name.eq(member.name.lower()).and(member.age.eq(20)))
+			.fetch();
+
+		for (String s : result) {
+			System.out.println("s = " + s);
+		}
 	}
 }
