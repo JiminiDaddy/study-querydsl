@@ -102,7 +102,7 @@ class MemberJpaRepositoryTest {
 	@Test
 	@DisplayName("동적쿼리 by Where절 Parameters")
 	void dynamicQueryByWhereMultiParameters() {
-			Team teamA = new Team("Team1");
+		Team teamA = new Team("Team1");
 		Team teamB = new Team("Team2");
 		entityManager.persist(teamA);
 		entityManager.persist(teamB);
