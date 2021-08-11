@@ -6,6 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.domain.Member;
+import study.querydsl.domain.Team;
+import study.querydsl.dto.querydsl.MemberSearchCondition;
+import study.querydsl.dto.querydsl.MemberTeamDto;
 
 import javax.persistence.EntityManager;
 import java.util.List;
@@ -59,6 +62,40 @@ class MemberJpaRepositoryTest {
 		List<Member> findMember2 = memberJpaRepository.findByNameWithQuerydsl("member2");
 		assertThat(findMember2.size()).isEqualTo(1);
 		assertThat(findMember2.get(0)).isSameAs(member2);
+	}
+
+	@Test
+	@DisplayName("동적쿼리 by Builder")
+	void dynamicQueryByBuilder() {
+		Team teamA = new Team("Team1");
+		Team teamB = new Team("Team2");
+		entityManager.persist(teamA);
+		entityManager.persist(teamB);
+
+		Member member1 = new Member("member1", 10, teamA);
+		Member member2 = new Member("member2", 20, teamA);
+		Member member3 = new Member("member3", 30, teamB);
+		Member member4 = new Member("member4", 40, teamB);
+		Member member5 = new Member("member5", 25, teamA);
+		Member member6 = new Member("member6", 15, teamA);
+		entityManager.persist(member1);
+		entityManager.persist(member2);
+		entityManager.persist(member3);
+		entityManager.persist(member4);
+		entityManager.persist(member5);
+		entityManager.persist(member6);
+		entityManager.flush();
+
+		MemberSearchCondition memberSearchCondition = new MemberSearchCondition();
+		//memberSearchCondition.setMemberName("member2");
+		//memberSearchCondition.setTeamName("Team1");
+		memberSearchCondition.setAgeGoe(20);
+		memberSearchCondition.setAgeLoe(30);
+		List<MemberTeamDto> result = memberJpaRepository.searchByBuilder(memberSearchCondition);
+		for (MemberTeamDto memberTeamDto : result) {
+			System.out.println("memberTeamDto : <" + memberTeamDto + ">");
+		}
+		assertThat(result).extracting("memberName").containsExactly("member2", "member3", "member5");
 	}
 
 }
