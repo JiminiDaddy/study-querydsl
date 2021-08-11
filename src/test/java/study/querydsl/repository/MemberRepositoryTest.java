@@ -5,6 +5,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.domain.Member;
 import study.querydsl.domain.Team;
@@ -36,7 +38,7 @@ class MemberRepositoryTest {
 
 	@BeforeEach
 	void setup() {
-				Team teamA = new Team("Team1");
+		Team teamA = new Team("Team1");
 		Team teamB = new Team("Team2");
 		entityManager.persist(teamA);
 		entityManager.persist(teamB);
@@ -97,4 +99,52 @@ class MemberRepositoryTest {
 		assertThat(result).extracting("memberName").containsExactly("member3", "member6");
 	}
 
+	@Test
+	@DisplayName("search with page")
+	void searchWithPage() {
+		MemberSearchCondition memberSearchCondition = new MemberSearchCondition();
+		memberSearchCondition.setTeamName("Team2");
+
+		PageRequest pageRequest = PageRequest.of(0, 3);
+
+		Page<MemberTeamDto> result = memberRepository.searchPagingSimple(memberSearchCondition, pageRequest);
+		assertThat(result.getSize()).isEqualTo(3);
+		assertThat(result).extracting("memberName")
+			.containsExactly("member3", "member4", "member6");
+	}
+
+	@Test
+	@DisplayName("search with page complex")
+	void searchWithPageComplex() {
+		MemberSearchCondition memberSearchCondition = new MemberSearchCondition();
+		memberSearchCondition.setTeamName("Team2");
+
+		PageRequest pageRequest = PageRequest.of(0, 3);
+
+		Page<MemberTeamDto> result = memberRepository.searchPagingComplex(memberSearchCondition, pageRequest);
+		assertThat(result.getSize()).isEqualTo(3);
+		assertThat(result).extracting("memberName")
+			.containsExactly("member3", "member4", "member6");
+	}
+
+	@Test
+	@DisplayName("search with page count optimizing")
+	void searchWithPageComplexAndCountOptimizing() {
+		// Spring-Data의 지원으로, total count를 위한 Query가 필요없는경우는 count query가 DB로 전송되지 않아야 한다
+		MemberSearchCondition memberSearchCondition = new MemberSearchCondition();
+		memberSearchCondition.setTeamName("Team2");
+
+		PageRequest pageRequest = PageRequest.of(0, 100);
+		Page<MemberTeamDto> result = memberRepository.searchPagingComplexBySpringData(memberSearchCondition, pageRequest);
+		assertThat(result.toList().size()).isEqualTo(3);
+		assertThat(result).extracting("memberName")
+			.containsExactly("member3", "member4", "member6");
+
+		pageRequest = PageRequest.of(1, 2);
+		result = memberRepository.searchPagingComplexBySpringData(memberSearchCondition, pageRequest);
+		assertThat(result.toList().size()).isEqualTo(1);
+		assertThat(result).extracting("memberName")
+			.containsExactly("member6");
+
+	}
 }
