@@ -1,6 +1,7 @@
 package study.querydsl.repository;
 
 import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.stereotype.Repository;
 import study.querydsl.domain.Member;
@@ -62,6 +63,7 @@ public class MemberJpaRepository {
 	public List<Member> findByNameWithQuerydsl(String name) {
 		return jpaQueryFactory
 			.selectFrom(member)
+			.where(member.name.eq(name))
 			.fetch();
 	}
 
@@ -91,5 +93,46 @@ public class MemberJpaRepository {
 			.leftJoin(member.team, team)
 			.where(builder)
 			.fetch();
+	}
+
+	public List<MemberTeamDto> search(MemberSearchCondition condition) {
+		return jpaQueryFactory
+			.select(new QMemberTeamDto(
+				member.id.as("member_id"), member.name, member.age, team.id.as("team_id"), team.name))
+			.from(member)
+			.leftJoin(member.team, team)
+			.where(
+				equalsMemberName(condition.getMemberName()),
+				equalsTeamName(condition.getTeamName()),
+				//goeAge(condition.getAgeGoe()),
+				//loeAge(condition.getAgeLoe())
+				betweenAge(condition.getAgeGoe(), condition.getAgeLoe())
+			)
+			.fetch();
+	}
+
+	private BooleanExpression equalsMemberName(String memberName) {
+		return hasText(memberName) ? member.name.eq(memberName) : null;
+	}
+
+	private BooleanExpression equalsTeamName(String teamName) {
+		return hasText(teamName) ? team.name.eq(teamName) : null;
+	}
+
+	private BooleanExpression goeAge(Integer ageGoe) {
+		return ageGoe != null ? member.age.goe(ageGoe) : null;
+	}
+
+	private BooleanExpression loeAge(Integer ageLoe) {
+		return ageLoe != null ? member.age.loe(ageLoe) : null;
+	}
+
+	private BooleanExpression betweenAge(Integer ageGoe, Integer ageLoe) {
+		if (ageGoe == null)	ageGoe = 0;		// TODO 최소치는 정책에서 정해진 값으로 설정해야함
+		if (ageLoe == null) ageLoe = 100;	// TODO 최대치는 정책에서 정해진 값으로 설정해야함
+
+		//return member.age.between(ageGoe, ageLoe);
+		// 위 주석된 코드와 같이 between이 더 깔끔하지만 예제로 구현된 메서드를 조립하여 사용할 수 있다는것을 증명하기 위해 아래와 같이 구현함
+		return goeAge(ageGoe).and(loeAge(ageLoe));
 	}
 }

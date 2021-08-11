@@ -36,6 +36,7 @@ class MemberJpaRepositoryTest {
 		Member findMember = memberJpaRepository.findById(member.getId()).orElseThrow(() -> new IllegalArgumentException("WrongId: " + member.getId()));
 		assertThat(findMember).isSameAs(member);
 
+
 		List<Member> findAll = memberJpaRepository.findAll();
 		assertThat(findAll.size()).isEqualTo(2);
 
@@ -77,7 +78,7 @@ class MemberJpaRepositoryTest {
 		Member member3 = new Member("member3", 30, teamB);
 		Member member4 = new Member("member4", 40, teamB);
 		Member member5 = new Member("member5", 25, teamA);
-		Member member6 = new Member("member6", 15, teamA);
+		Member member6 = new Member("member6", 35, teamA);
 		entityManager.persist(member1);
 		entityManager.persist(member2);
 		entityManager.persist(member3);
@@ -88,14 +89,49 @@ class MemberJpaRepositoryTest {
 
 		MemberSearchCondition memberSearchCondition = new MemberSearchCondition();
 		//memberSearchCondition.setMemberName("member2");
-		//memberSearchCondition.setTeamName("Team1");
-		memberSearchCondition.setAgeGoe(20);
-		memberSearchCondition.setAgeLoe(30);
+		memberSearchCondition.setTeamName("Team2");
+		memberSearchCondition.setAgeGoe(35);
+		memberSearchCondition.setAgeLoe(40);
 		List<MemberTeamDto> result = memberJpaRepository.searchByBuilder(memberSearchCondition);
 		for (MemberTeamDto memberTeamDto : result) {
 			System.out.println("memberTeamDto : <" + memberTeamDto + ">");
 		}
-		assertThat(result).extracting("memberName").containsExactly("member2", "member3", "member5");
+		assertThat(result).extracting("memberName").containsExactly("member4");
 	}
+
+	@Test
+	@DisplayName("동적쿼리 by Where절 Parameters")
+	void dynamicQueryByWhereMultiParameters() {
+			Team teamA = new Team("Team1");
+		Team teamB = new Team("Team2");
+		entityManager.persist(teamA);
+		entityManager.persist(teamB);
+
+		Member member1 = new Member("member1", 10, teamA);
+		Member member2 = new Member("member2", 20, teamA);
+		Member member3 = new Member("member3", 30, teamB);
+		Member member4 = new Member("member4", 40, teamB);
+		Member member5 = new Member("member5", 25, teamA);
+		Member member6 = new Member("member6", 35, teamA);
+		entityManager.persist(member1);
+		entityManager.persist(member2);
+		entityManager.persist(member3);
+		entityManager.persist(member4);
+		entityManager.persist(member5);
+		entityManager.persist(member6);
+		entityManager.flush();
+
+		MemberSearchCondition memberSearchCondition = new MemberSearchCondition();
+		memberSearchCondition.setTeamName("Team2");
+		memberSearchCondition.setAgeGoe(35);
+		memberSearchCondition.setAgeLoe(40);
+
+		List<MemberTeamDto> result = memberJpaRepository.search(memberSearchCondition);
+		for (MemberTeamDto memberTeamDto : result) {
+			System.out.println("memberTeamDto = " + memberTeamDto);
+		}
+		assertThat(result).extracting("memberName").containsExactly("member4");
+	}
+
 
 }
