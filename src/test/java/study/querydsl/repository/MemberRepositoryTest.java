@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.domain.Member;
+import study.querydsl.domain.QMember;
 import study.querydsl.domain.Team;
 import study.querydsl.dto.querydsl.MemberSearchCondition;
 import study.querydsl.dto.querydsl.MemberTeamDto;
@@ -145,6 +146,25 @@ class MemberRepositoryTest {
 		assertThat(result.toList().size()).isEqualTo(1);
 		assertThat(result).extracting("memberName")
 			.containsExactly("member6");
+	}
 
+	@Test
+	@DisplayName("queydsl predicate executor")
+	void querydslPredicateExecutorTest() {
+		// QuerydslPredicateExecutor의 장점
+		// SpringDataJPA의 메서드에 Querydsl 구문을 직접 넣을 수 있어 편리하다
+		// Pageable, Sort 정상 동작함
+
+		// 단점
+		// Service 레이어에서 Querydsl 구현체에 의존하게 된다 (호출할 때 구문을 넣어야하므로)
+		// 복잡한 Join관계인 경우는 정상동작 어렵다고 한다 (실무에서 사실상 사용하기 어려움)
+		// left join 불가능
+		Iterable<Member> result = memberRepository.findAll(
+			QMember.member.age.between(10, 40)
+				.and(QMember.member.team.name.eq("Team2")));
+
+		for (Member findMember : result) {
+			System.out.println("findMember = " + findMember);
+		}
 	}
 }
